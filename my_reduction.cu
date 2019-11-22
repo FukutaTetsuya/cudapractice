@@ -79,7 +79,7 @@ __global__ void reduce_array_shared_memory(double *device_double, double *device
 	for(i = global_id; i < dim_array; i += NB * NT) {
 		device_shared_double[local_id] = device_double[i];
 		__syncthreads();
-		for(j = NT / 2; j > 0; j >>= 1) {
+		for(j = NT / 2; j > 0; j = j / 2) {
 			if((local_id < j) && (local_id + j < dim_array)) {
 				device_shared_double[local_id] += device_shared_double[local_id + j]; 
 				__syncthreads();
@@ -130,6 +130,8 @@ int main(void) {
 	//calculate on gpu with shared memory------------------
 	calculate_each_point<<<NB, NT>>>(device_double[0]);
 	cudaDeviceSynchronize();
+	i = 0;
+	j = 1;
 	//uneyamasan's copy
 	for(k = N * N; k > 1; k = k / NT) {
 		reduce_array_shared_memory<<<NB, NT>>>(device_double[i], device_double[j], k);
