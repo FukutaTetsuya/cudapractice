@@ -79,7 +79,7 @@ __global__ void reduce_array_shared_memory(double *device_double, double *device
 	for(i = global_id; i < dim_array; i += NB * NT) {
 		device_shared_double[local_id] = device_double[i];
 		__syncthreads();
-		for(j = NT / 2; j > 0; j = j / 2) {
+		for(j = NT / 2; j > 0; j >>= 1) {
 			if((local_id < j) && (local_id + j < dim_array)) {
 				device_shared_double[local_id] += device_shared_double[local_id + j]; 
 				__syncthreads();
