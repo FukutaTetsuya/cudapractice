@@ -63,15 +63,33 @@ __global__ void reduce_array_global_memory(double *device_double, double *device
 	}
 }
 //-------------------------------------------------------------
-__global__ void reduce_array_shared_memory(double *device_double, int dim_array) {
+__global__ void reduce_array_shared_memory(double *device_double, double *device_double_reduced, int dim_array) {
 	__shared__ double device_shared_double[NT];
 	int global_id = threadIdx.x + blockIdx.x * blockDim.x;
 	int block_id = blockIdx.x;
 	int local_id = threadIdx.x;
 	int i;
+	int j;
+	//任意次元の配列を扱うのは難しそうなのでとりあえずお手本を写す
+	/*for(i = global_id; i < dim_array; i += NB * NT) {
+		device_shared_double[local_id] = device_double[i];
+		__syncthreads();
+	}*/
+	//お手本
 	for(i = global_id; i < dim_array; i += NB * NT) {
 		device_shared_double[local_id] = device_double[i];
 		__syncthreads();
+		for(j = NT / 2; j > 0; j = j / 2) {
+			if((local_id < j) && (local_id + j < dim_array)) {
+				device_shared_double[local_id] += device_shared_double[local_id + j]; 
+				__syncthreads();
+			}
+		}
+		if(local_id == 0) {
+			device_double_reduced[block_id] = device_shared_double[0];
+			__syncthreads();
+		}
+		block_id += NB;
 	}
 }
 //main---------------------------------------------------------
@@ -112,7 +130,7 @@ int main(void) {
 	//calculate on gpu with shared memory------------------
 	calculate_each_point<<<NB, NT>>>(device_double[0]);
 	cudaDeviceSynchronize();
-	reduce_array_shared_memory<<<NB, NT>>>(device_double[0], N * N);
+	reduce_array_shared_memory<<<NB, NT>>>(device_double[0], device_double[1], N * N);
 
 	//calculate on cpu-------------------------------------
 	host_sum = calculate_reference(host_n, host_l);
