@@ -130,7 +130,17 @@ int main(void) {
 	//calculate on gpu with shared memory------------------
 	calculate_each_point<<<NB, NT>>>(device_double[0]);
 	cudaDeviceSynchronize();
-	reduce_array_shared_memory<<<NB, NT>>>(device_double[0], device_double[1], N * N);
+	//uneyamasan's copy
+	for(k = N * N; k > 1; k = k / NT) {
+		reduce_array_shared_memory<<<NB, NT>>>(device_double[i], device_double[j], k);
+		cudaDeviceSynchronize();
+		i_temp = i;
+		i = j;
+		j = i_temp;
+	}
+	cudaMemcpy(&host_sum, device_double[i], sizeof(double), cudaMemcpyDeviceToHost);
+	host_sum = host_sum * host_l * host_l / (double)host_n / (double)host_n;
+	printf("calc on gpu with shared mem:%f\n", host_sum);
 
 	//calculate on cpu-------------------------------------
 	host_sum = calculate_reference(host_n, host_l);
