@@ -7,13 +7,13 @@
 #define DEVICE_ID 0
 
 /*  constants for the number of threads and the integration domain  */
-/*  number of threads in a block  */
+/*  number of threads in a block, 2^n  */
 #define NT 1024
-/*  number of blocks in a grid  */
+/*  number of blocks in a grid, 2^n  */
 #define NB 16
 /*  length of the target domain  */
 #define L 10.0
-/*  number of division for the discretization of the target domain  */
+/*  number of division for the discretization of the target domain, 2^n  */
 #define N 1024
 
 /*  constants on a GPU  */
@@ -57,9 +57,7 @@ __global__ void reduce_array_global_memory(double *device_double, double *device
 	for(i = global_id; i < dim_array; i += NT * NB) {
 		if(i < dim_array / 2) {
 			device_double_reduced[i] = device_double[i] + device_double[i + dim_array / 2];
-		} else if(i == dim_array / 2 + dim_array % 2 - 1) {
-			device_double_reduced[i] = device_double[i];
-		}
+		}	
 	}
 }
 //-------------------------------------------------------------
@@ -70,12 +68,6 @@ __global__ void reduce_array_shared_memory(double *device_double, double *device
 	int local_id = threadIdx.x;
 	int i;
 	int j;
-	//任意次元の配列を扱うのは難しそうなのでとりあえずお手本を写す
-	/*for(i = global_id; i < dim_array; i += NB * NT) {
-		device_shared_double[local_id] = device_double[i];
-		__syncthreads();
-	}*/
-	//お手本
 	for(i = global_id; i < dim_array; i += NB * NT) {
 		device_shared_double[local_id] = device_double[i];
 		__syncthreads();
@@ -93,7 +85,6 @@ __global__ void reduce_array_shared_memory(double *device_double, double *device
 		__syncthreads();
 		block_id += NB;
 	}
-
 }
 //main---------------------------------------------------------
 int main(void) {
