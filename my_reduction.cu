@@ -93,6 +93,7 @@ __global__ void reduce_array_shared_memory(double *device_double, double *device
 		__syncthreads();
 		block_id += NB;
 	}
+
 }
 //main---------------------------------------------------------
 int main(void) {
