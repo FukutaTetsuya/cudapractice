@@ -18,13 +18,14 @@
 __device__ __constant__ int n;
 __device__ __constant__ float theta;
 
-//GPU functions----------------------------------------------------------------
+//GPU functions-----------------------------------------------------------------
 
 
 int main(void) {
+//variants----------------------------------------------------------------------
 	int n_host;
 	int n_square;
-	int m;
+	int iteration;
 	double l_host;
 	double theta_host;
 	dim3 dim_threads;
@@ -36,11 +37,30 @@ int main(void) {
 
 //initialize--------------------------------------------------------------------
 	n_host = N;
+	n_square = N * N;
 	l_host = L;
 	dim_threads.x = NT;
 	dim_threads.y = NT;
 	dim_threads.z = 1;
 	n_blocks = (int)(ceil((double)n_host / NT));
+	iteration = M;
+
+	cudaMemcyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcyToSymbol(theta, &theta_host, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaHostAlloc((void **)&field_host[0], n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&field_host[1], n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&result_global_host,  n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&result_shared_host,  n_square * sizeof(double), cudaHostAllocMapped);
+	cudaMalloc((void **)&field_device[0], n_square * sizeof(double));
+	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
+
+//finalize----------------------------------------------------------------------
+	cudaFreeHost(fileld_host[0]);
+	cudaFreeHost(fileld_host[1]);
+	cudaFreeHost(result_global_host);
+	cudaFreeHost(result_shared_host);
+	cudaFree(field_device[0]);
+	cudaFree(field_device[1]);
 
 	return 0;
 }
