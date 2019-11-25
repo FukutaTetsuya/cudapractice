@@ -26,6 +26,7 @@ int main(void) {
 	int n_host;
 	int n_square;
 	int iteration;
+	int n_blocks;
 	double l_host;
 	double theta_host;
 	dim3 dim_threads;
@@ -45,8 +46,8 @@ int main(void) {
 	n_blocks = (int)(ceil((double)n_host / NT));
 	iteration = M;
 
-	cudaMemcyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
-	cudaMemcyToSymbol(theta, &theta_host, sizeof(double), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(theta, &theta_host, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaHostAlloc((void **)&field_host[0], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&field_host[1], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&result_global_host,  n_square * sizeof(double), cudaHostAllocMapped);
@@ -55,8 +56,8 @@ int main(void) {
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
 
 //finalize----------------------------------------------------------------------
-	cudaFreeHost(fileld_host[0]);
-	cudaFreeHost(fileld_host[1]);
+	cudaFreeHost(field_host[0]);
+	cudaFreeHost(field_host[1]);
 	cudaFreeHost(result_global_host);
 	cudaFreeHost(result_shared_host);
 	cudaFree(field_device[0]);
