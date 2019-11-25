@@ -20,6 +20,27 @@ __device__ __constant__ float theta;
 
 //GPU functions-----------------------------------------------------------------
 
+//Host functions----------------------------------------------------------------
+void init_field(double *field_host, int n_host, int l_host) {
+	int i;
+	int j;
+	double x;
+	double y;
+	double dx = l_host / (double)n_host;
+	double dy = l_host / (double)n_host;
+	double midst = l_host * 0.5;
+	for(i = 0; i < n_host; i += 1) {
+		x = (double)i * dx;
+		for(j = 0; j < n_host; j += 1) {
+			y = (double)j * dy;
+			if((x > midst && y > midst) || (x < midst && y < midst)) {
+				field_host[n_host * j + i] = 1.0;
+			} else {
+				field_host[n_host * j + i] = 0.0;
+			}
+		}
+	}
+}
 
 int main(void) {
 //variants----------------------------------------------------------------------
