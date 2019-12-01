@@ -19,6 +19,26 @@ __device__ __constant__ int n;
 __device__ __constant__ float theta;
 
 //GPU functions-----------------------------------------------------------------
+__global__ void diffusion_global(double *field_device, double *field_device_new) {
+	int i_global;
+	int j_global;
+	int i_top, i_bottom;
+	int j_right, j_left;
+
+	i_global = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if(i_global < n) {
+		i_top = (i_global + 1) % n;
+		i_bottom = (i_global - 1 + n) % n;
+		for(j_global = threadIdx.y; j_global < n; j += NT) {
+			j_right = (j_global + 1) % n;
+			j_left = (j_global - 1 + n) % n;
+			field_device_new[i * n + j] = (1.0 - 4.0 * theta) * field_device[i * n + j]
+				+ theta * (field_device[i_top + n + j] + field_device[i_bottom + n + j]
+					      + field_device[i + n + j_right] + field_device[i + n + j_left]);
+		}
+	}
+}
 
 //Host functions----------------------------------------------------------------
 void init_field(double *field_host, int n_host, int l_host) {
