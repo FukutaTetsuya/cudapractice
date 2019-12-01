@@ -62,8 +62,18 @@ void init_field(double *field_host, int n_host, int l_host) {
 	}
 }
 
+void flip_ij(int *i, int *j) {
+	int i_temp;
+	i_temp = *i;
+	*i = *j;
+	*j = i_temp;
+}
+
 int main(void) {
-//variavles---------------------------------------------------------------------
+//delcare variavles-------------------------------------------------------------
+	int i;
+	int j;
+	int k;
 	int n_host;
 	int n_square;
 	int iteration;
@@ -102,7 +112,13 @@ int main(void) {
 	init_field(field_host[0], n_host, l_host);
 	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
 
-	diffusion_global<<<n_blocks, dim_threads>>>(field_device[0], field_device[1]);
+	//calculate using only global memory------------------------------------
+	i = 0;
+	j = 1;
+	for(k = 0; k < iteration; k += 1) {
+		diffusion_global<<<n_blocks, dim_threads>>>(field_device[i], field_device[j]);
+		flip_ij(&i, &j);
+	}
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
