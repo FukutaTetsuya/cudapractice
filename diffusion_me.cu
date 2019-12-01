@@ -30,12 +30,12 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 	if(i_global < n) {
 		i_top = (i_global + 1) % n;
 		i_bottom = (i_global - 1 + n) % n;
-		for(j_global = threadIdx.y; j_global < n; j += NT) {
+		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
 			j_right = (j_global + 1) % n;
 			j_left = (j_global - 1 + n) % n;
-			field_device_new[i * n + j] = (1.0 - 4.0 * theta) * field_device[i * n + j]
-				+ theta * (field_device[i_top + n + j] + field_device[i_bottom + n + j]
-					      + field_device[i + n + j_right] + field_device[i + n + j_left]);
+			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_device[i_global * n + j_global]
+				+ theta * (field_device[i_top + n + j_global] + field_device[i_bottom + n + j_global]
+					      + field_device[i_global + n + j_right] + field_device[i_global + n + j_left]);
 		}
 	}
 }
@@ -101,6 +101,9 @@ int main(void) {
 	//initialize field------------------------------------------------------
 	init_field(field_host[0], n_host, l_host);
 	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
+
+	diffusion_global<<<n_blocks, dim_threads>>>(field_device[0], field_device[1]);
+
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
 	cudaFreeHost(field_host[1]);
