@@ -69,6 +69,21 @@ void flip_ij(int *i, int *j) {
 	*j = i_temp;
 }
 
+void print_field(FILE *file_write, double *field, int n, double l) {
+	int i;
+	int j;
+	double x;
+	double y;
+	double d = l/(double)n;
+	for(i = 0; i < N; i += 1) {
+		y = (double)i * d;
+		for(j = 0; j < N; j += 1) {
+			x = (double)j * d;
+			fprintf(file_write, "%f %f %f\n", x, y, field[i * n + j]);
+		}
+	}
+}
+
 int main(void) {
 //delcare variavles-------------------------------------------------------------
 	int i;
@@ -86,6 +101,7 @@ int main(void) {
 	double *result_global_host;
 	double *result_shared_host;
 	FILE *file_write;
+	char filename_write[256];
 
 //initialize--------------------------------------------------------------------
 	//set variables---------------------------------------------------------
@@ -117,8 +133,14 @@ int main(void) {
 	j = 1;
 	for(k = 0; k < iteration; k += 1) {
 		diffusion_global<<<n_blocks, dim_threads>>>(field_device[i], field_device[j]);
+		cudaDeviceSynchronize();
 		flip_ij(&i, &j);
 	}
+	cudaMemcpy(field_host[0], field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
+	sprintf(filename_write, "result_global.txt");
+	file_write = fopen(filename_write, "w");
+	print_field(file_write, field_host[0], n_host, l_host);
+	fclose(file_write);
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
