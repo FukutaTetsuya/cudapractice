@@ -43,7 +43,7 @@ void init_field(double *field_host, int n_host, int l_host) {
 }
 
 int main(void) {
-//variants----------------------------------------------------------------------
+//variavles---------------------------------------------------------------------
 	int n_host;
 	int n_square;
 	int iteration;
@@ -58,6 +58,7 @@ int main(void) {
 	FILE *file_write;
 
 //initialize--------------------------------------------------------------------
+	//set variables---------------------------------------------------------
 	n_host = N;
 	n_square = N * N;
 	l_host = L;
@@ -67,6 +68,7 @@ int main(void) {
 	n_blocks = (int)(ceil((double)n_host / NT));
 	iteration = M;
 
+	//allocate memories-----------------------------------------------------
 	cudaMemcpyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(theta, &theta_host, sizeof(double), 0, cudaMemcpyHostToDevice);
 	cudaHostAlloc((void **)&field_host[0], n_square * sizeof(double), cudaHostAllocMapped);
@@ -76,6 +78,9 @@ int main(void) {
 	cudaMalloc((void **)&field_device[0], n_square * sizeof(double));
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
 
+	//initialize field------------------------------------------------------
+	init_field(field_host[0], n_host, l_host);
+	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
 	cudaFreeHost(field_host[1]);
