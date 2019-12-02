@@ -84,6 +84,26 @@ void print_field(FILE *file_write, double *field, int n, double l) {
 	}
 }
 
+void diffusion_host(double *field_host, double *field_host_new) {
+	int i;
+	int j;
+	int i_top, i_bottom;
+	int j_right, j_left;
+
+	for(i = 0; i < n; i += 1) {
+		i_top = (i + 1) % n;
+		i_bottom = (i - 1 + n) % n;
+		for(j = 0; j < n; j += 1) {
+			j_right = (j + 1) % n;
+			j_left = (j - 1 + n) % n;
+			field_host_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_host[i_global * n + j_global]
+				+ theta * (field_host[i_top * n + j_global] + field_host[i_bottom * n + j_global]
+					      + field_host[i_global * n + j_right] + field_host[i_global * n + j_left]);
+
+		}
+	}
+}
+
 int main(void) {
 //delcare variavles-------------------------------------------------------------
 	int i;
