@@ -84,21 +84,21 @@ void print_field(FILE *file_write, double *field, int n, double l) {
 	}
 }
 
-void diffusion_host(double *field_host, double *field_host_new) {
+void diffusion_host(double *field_host, double *field_host_new, int n_host, double theta_host) {
 	int i;
 	int j;
 	int i_top, i_bottom;
 	int j_right, j_left;
 
-	for(i = 0; i < n; i += 1) {
-		i_top = (i + 1) % n;
-		i_bottom = (i - 1 + n) % n;
-		for(j = 0; j < n; j += 1) {
-			j_right = (j + 1) % n;
-			j_left = (j - 1 + n) % n;
-			field_host_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_host[i_global * n + j_global]
-				+ theta * (field_host[i_top * n + j_global] + field_host[i_bottom * n + j_global]
-					      + field_host[i_global * n + j_right] + field_host[i_global * n + j_left]);
+	for(i = 0; i < n_host; i += 1) {
+		i_top = (i + 1) % n_host;
+		i_bottom = (i - 1 + n_host) % n_host;
+		for(j = 0; j < n_host; j += 1) {
+			j_right = (j + 1) % n_host;
+			j_left = (j - 1 + n_host) % n_host;
+			field_host_new[i * n_host + j] = (1.0 - 4.0 * theta_host) * field_host[i * n_host + j]
+				+ theta_host * (field_host[i_top * n_host + j] + field_host[i_bottom * n_host + j]
+					      + field_host[i * n_host + j_right] + field_host[i * n_host + j_left]);
 
 		}
 	}
@@ -171,7 +171,7 @@ int main(void) {
 	i = 0;
 	j = 1;
 	for(k = 0; k < iteration; k += 1) {
-		diffusion_host(field_host[i], field_host[j]);
+		diffusion_host(field_host[i], field_host[j], n_host, theta_host);
 		flip_ij(&i, &j);
 	}
 		//print out-----------------------------------------------------
