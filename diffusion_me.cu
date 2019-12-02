@@ -145,11 +145,11 @@ int main(void) {
 	cudaMalloc((void **)&field_device[0], n_square * sizeof(double));
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
 
-	//initialize field------------------------------------------------------
+	//calculate using only global memory------------------------------------
+		//initialize field----------------------------------------------
 	init_field(field_host[0], n_host, l_host);
 	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
-
-	//calculate using only global memory------------------------------------
+		//iteration-----------------------------------------------------
 	i = 0;
 	j = 1;
 	for(k = 0; k < iteration; k += 1) {
@@ -157,11 +157,30 @@ int main(void) {
 		cudaDeviceSynchronize();
 		flip_ij(&i, &j);
 	}
+		//copy to host and print out------------------------------------
 	cudaMemcpy(field_host[0], field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
 	sprintf(filename_write, "result_global.txt");
 	file_write = fopen(filename_write, "w");
 	print_field(file_write, field_host[0], n_host, l_host);
 	fclose(file_write);
+
+	//calculate on CPU------------------------------------------------------
+		//initialize field----------------------------------------------
+	init_field(field_host[0], n_host, l_host);
+		//iteration-----------------------------------------------------
+	i = 0;
+	j = 1;
+	for(k = 0; k < iteration; k += 1) {
+		diffusion_host(field_host[i], field_host[j]);
+		flip_ij(&i, &j);
+	}
+		//print out-----------------------------------------------------
+	sprintf(filename_write, "result_host.txt");
+	file_write = fopen(filename_write, "w");
+	print_field(file_write, field_host[i], n_host, l_host);
+	fclose(file_write);
+
+
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
