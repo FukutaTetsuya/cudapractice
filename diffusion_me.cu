@@ -16,7 +16,7 @@
 
 /*  constants on a GPU  */
 __device__ __constant__ int n;
-__device__ __constant__ float theta;
+__device__ __constant__ double theta;
 
 //GPU functions-----------------------------------------------------------------
 __global__ void diffusion_global(double *field_device, double *field_device_new) {
@@ -34,12 +34,9 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 			j_right = (j_global + 1) % n;
 			j_left = (j_global - 1 + n) % n;
 			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_device[i_global * n + j_global]
-				+ theta * (field_device[i_top + n + j_global] + field_device[i_bottom + n + j_global]
-					      + field_device[i_global + n + j_right] + field_device[i_global + n + j_left]);
+				+ theta * (field_device[i_top * n + j_global] + field_device[i_bottom * n + j_global]
+					      + field_device[i_global * n + j_right] + field_device[i_global * n + j_left]);
 		}
-	}
-	if(i_global == 0) {
-		printf("%f\n", field_device_new[i_global * n + j_global]);
 	}
 }
 
@@ -111,6 +108,7 @@ int main(void) {
 	n_host = N;
 	n_square = N * N;
 	l_host = L;
+	theta_host = THETA;
 	dim_threads.x = NT;
 	dim_threads.y = NT;
 	dim_threads.z = 1;
