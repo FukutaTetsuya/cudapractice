@@ -38,6 +38,9 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 					      + field_device[i_global + n + j_right] + field_device[i_global + n + j_left]);
 		}
 	}
+	if(i_global == 0) {
+		printf("%f\n", field_device_new[i_global * n + j_global]);
+	}
 }
 
 //Host functions----------------------------------------------------------------
