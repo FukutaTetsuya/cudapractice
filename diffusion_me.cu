@@ -41,6 +41,14 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 }
 
 __global__ void diffusion_shared(double *field_device, double *field_device_new) {
+	int i_global;
+	int j_global;
+	int i_shared;
+	int j_shared;
+	__shared__ double field_shared[(NT + 2) * (NT + 2)];
+	i_global = blockDim.x * blockIdx.x + threadIdx.x;
+	i_shared = threadIdx.y + 1;
+	j_shared = threadIdx.x + 1;
 }
 
 //Host functions----------------------------------------------------------------
