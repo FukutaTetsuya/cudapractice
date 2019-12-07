@@ -193,6 +193,7 @@ int main(void) {
 	double *field_device[2];
 	double *result_host;
 	double *result_global_host;
+	double *result_global_transpose_host;
 	double *result_shared_host;
 	FILE *file_write;
 	char filename_write[256];
@@ -216,6 +217,7 @@ int main(void) {
 	cudaHostAlloc((void **)&field_host[0], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&field_host[1], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&result_global_host,  n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&result_global_transpose_host,  n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&result_shared_host,  n_square * sizeof(double), cudaHostAllocMapped);
 	cudaMalloc((void **)&field_device[0], n_square * sizeof(double));
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
@@ -263,7 +265,7 @@ int main(void) {
 	print_field(file_write, result_global_host, n_host, l_host);
 	fclose(file_write);
 
-//calculate using only global memory--------------------------------------------
+//calculate using only global memory, transposed ver----------------------------
 	//initialize field------------------------------------------------------
 	init_field(field_host[0], n_host, l_host);
 	start = clock();
@@ -279,10 +281,10 @@ int main(void) {
 	//copy to host and print out--------------------------------------------
 	cudaMemcpy(result_global_host, field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
 	end = clock();
-	printf("global:%ld\n", end - start);
-	sprintf(filename_write, "result_global.txt");
+	printf("global_transpose:%ld\n", end - start);
+	sprintf(filename_write, "result_global_transpose.txt");
 	file_write = fopen(filename_write, "w");
-	print_field(file_write, result_global_host, n_host, l_host);
+	print_field(file_write, result_global_transpose_host, n_host, l_host);
 	fclose(file_write);
 
 //calculate using shared memory-------------------------------------------------
@@ -309,11 +311,13 @@ int main(void) {
 
 //check answers-----------------------------------------------------------------
 	printf("global:%f, shared:%f\n", check_residue(result_host, result_global_host, n_host), check_residue(result_host, result_shared_host, n_host) );
+	printf("global_trans:%f\n", check_residue(result_host, result_global_host, n_host));
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
 	cudaFreeHost(field_host[1]);
 	cudaFreeHost(result_global_host);
+	cudaFreeHost(result_global_transpose_host);
 	cudaFreeHost(result_shared_host);
 	cudaFree(field_device[0]);
 	cudaFree(field_device[1]);
