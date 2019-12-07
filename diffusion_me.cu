@@ -22,20 +22,20 @@ __device__ __constant__ double theta;
 __global__ void diffusion_global(double *field_device, double *field_device_new) {
 	int i_global;
 	int j_global;
-	int i_top, i_bottom;
-	int j_right, j_left;
+	int i_left, i_right;
+	int j_top, j_bottom;
 
 	i_global = blockDim.x * blockIdx.x + threadIdx.x;
 
 	if(i_global < n) {
-		i_top = (i_global + 1) % n;
-		i_bottom = (i_global - 1 + n) % n;
+		i_right = (i_global + 1) % n;
+		i_left = (i_global - 1 + n) % n;
 		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
-			j_right = (j_global + 1) % n;
-			j_left = (j_global - 1 + n) % n;
+			j_top = (j_global + 1) % n;
+			j_bottom = (j_global - 1 + n) % n;
 			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_device[i_global * n + j_global]
-				+ theta * (field_device[i_top * n + j_global] + field_device[i_bottom * n + j_global]
-					      + field_device[i_global * n + j_right] + field_device[i_global * n + j_left]);
+				+ theta * (field_device[i_right * n + j_global] + field_device[i_left * n + j_global]
+					      + field_device[i_global * n + j_top] + field_device[i_global * n + j_bottom]);
 		}
 	}
 }
@@ -45,10 +45,29 @@ __global__ void diffusion_shared(double *field_device, double *field_device_new)
 	int j_global;
 	int i_shared;
 	int j_shared;
+	int i_top, i_bottom;
+	int j_right, j_left;
+	double field_register;
 	__shared__ double field_shared[(NT + 2) * (NT + 2)];
+
 	i_global = blockDim.x * blockIdx.x + threadIdx.x;
 	i_shared = threadIdx.y + 1;
 	j_shared = threadIdx.x + 1;
+
+	if(i < n) {
+		i_top = (i_global + 1) % n;
+		i_bottom = (i_global - 1 + n) % n;
+		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
+			j_right = (j_global + 1) % n;
+			j_left = (j_global - 1 + n) % n;
+			field_register = field_device[i_global * n + j_global];
+			field_shared[i_shared * (NT + 2) + j_shared] = field_register;
+			if(i_shared == 1) {
+				field_shared[0 * (NT + 2) + j_shared] = 
+			} else if(i_shared == NT) {
+			}
+		}
+	}
 }
 
 //Host functions----------------------------------------------------------------
