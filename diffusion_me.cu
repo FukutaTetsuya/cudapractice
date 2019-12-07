@@ -20,6 +20,7 @@ __device__ __constant__ double theta;
 
 //GPU functions-----------------------------------------------------------------
 __global__ void diffusion_global(double *field_device, double *field_device_new) {
+	//i*n+j を i+j*nとしたとき、1.結果は変わる？2.速さは変わる？
 	int i_global;
 	int j_global;
 	int i_left, i_right;
@@ -45,8 +46,8 @@ __global__ void diffusion_shared(double *field_device, double *field_device_new)
 	int j_global;
 	int i_shared;
 	int j_shared;
-	int i_top, i_bottom;
-	int j_right, j_left;
+	int i_left, i_right;
+	int j_top, j_bottom;
 	double field_register;
 	__shared__ double field_shared[(NT + 2) * (NT + 2)];
 
@@ -54,18 +55,30 @@ __global__ void diffusion_shared(double *field_device, double *field_device_new)
 	i_shared = threadIdx.y + 1;
 	j_shared = threadIdx.x + 1;
 
-	if(i < n) {
-		i_top = (i_global + 1) % n;
-		i_bottom = (i_global - 1 + n) % n;
+	if(i_global < n) {
+		i_right = (i_global + 1) % n;
+		i_left = (i_global - 1 + n) % n;
 		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
-			j_right = (j_global + 1) % n;
-			j_left = (j_global - 1 + n) % n;
+			j_top = (j_global + 1) % n;
+			j_bottom = (j_global - 1 + n) % n;
+			//copy field from global to shared----------------------
 			field_register = field_device[i_global * n + j_global];
 			field_shared[i_shared * (NT + 2) + j_shared] = field_register;
 			if(i_shared == 1) {
-				field_shared[0 * (NT + 2) + j_shared] = 
+				field_shared[0 * (NT + 2) + j_shared] = field_device[i_left * n + j_global];
 			} else if(i_shared == NT) {
+				field_shared[(NT + 1) * (NT + 2) + j_shared] = field_device[i_right * n + j_global];
+			} else if(j_shared == 1) {
+				field_shared[i_shared * (NT + 2) + 0] = field_device[i_global * n + j_bottom];
+			} else if(j_shared == NT) {
+				field_shared[i_shared * (NT + 2) + NT + 1] = field_device[i_global * n + j_top];
 			}
+			__syncthreads();
+			//calculate field evolution-----------------------------
+			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_shared[i_shared * n + j_shared]
+				+ theta * (field_shared[i_right * n + j_shared] + field_shared[i_left * n + j_shared]
+					      + field_shared[i_shared * n + j_top] + field_shared[i_shared * n + j_bottom]);
+
 		}
 	}
 }
@@ -153,6 +166,7 @@ int main(void) {
 	double *result_shared_host;
 	FILE *file_write;
 	char filename_write[256];
+	clock_t start, end;
 
 //initialize--------------------------------------------------------------------
 	//set variables---------------------------------------------------------
@@ -177,28 +191,32 @@ int main(void) {
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
 	result_host = (double *)malloc(n_square * sizeof(double));
 
-//calculate on CPU------------------------------------------------------
-	//initialize field----------------------------------------------
+//calculate on CPU--------------------------------------------------------------
+	//initialize field------------------------------------------------------
 	init_field(field_host[0], n_host, l_host);
-	//iteration-----------------------------------------------------
+	start = clock();
+	//iteration-------------------------------------------------------------
 	i = 0;
 	j = 1;
 	for(k = 0; k < iteration; k += 1) {
 		diffusion_host(field_host[i], field_host[j], n_host, theta_host);
 		flip_ij(&i, &j);
 	}
-	//save and print out--------------------------------------------
+	//save and print out----------------------------------------------------
 	memcpy(result_host, field_host[i], n_square * sizeof(double));
+	end = clock();
+	printf("host:%ld\n", end - start);
 	sprintf(filename_write, "result_host.txt");
 	file_write = fopen(filename_write, "w");
-	print_field(file_write, field_host[i], n_host, l_host);
+	print_field(file_write, result_host, n_host, l_host);
 	fclose(file_write);
 
-//calculate using only global memory------------------------------------
-	//initialize field----------------------------------------------
+//calculate using only global memory--------------------------------------------
+	//initialize field------------------------------------------------------
 	init_field(field_host[0], n_host, l_host);
+	start = clock();
 	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
-	//iteration-----------------------------------------------------
+	//iteration-------------------------------------------------------------
 	i = 0;
 	j = 1;
 	for(k = 0; k < iteration; k += 1) {
@@ -206,11 +224,35 @@ int main(void) {
 		cudaDeviceSynchronize();
 		flip_ij(&i, &j);
 	}
-	//copy to host and print out------------------------------------
+	//copy to host and print out--------------------------------------------
 	cudaMemcpy(result_global_host, field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
+	end = clock();
+	printf("global:%ld\n", end - start);
 	sprintf(filename_write, "result_global.txt");
 	file_write = fopen(filename_write, "w");
 	print_field(file_write, result_global_host, n_host, l_host);
+	fclose(file_write);
+
+//calculate using shared memory-------------------------------------------------
+	//initialize field------------------------------------------------------
+	init_field(field_host[0], n_host, l_host);
+	start = clock();
+	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
+	//iteration-------------------------------------------------------------
+	i = 0;
+	j = 1;
+	for(k = 0; k < iteration; k += 1) {
+		diffusion_shared<<<n_blocks, dim_threads>>>(field_device[i], field_device[j]);
+		cudaDeviceSynchronize();
+		flip_ij(&i, &j);
+	}
+	//copy to host and print out--------------------------------------------
+	cudaMemcpy(result_shared_host, field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
+	end = clock();
+	printf("shared:%ld\n", end - start);
+	sprintf(filename_write, "result_shared.txt");
+	file_write = fopen(filename_write, "w");
+	print_field(file_write, result_shared_host, n_host, l_host);
 	fclose(file_write);
 
 //finalize----------------------------------------------------------------------
