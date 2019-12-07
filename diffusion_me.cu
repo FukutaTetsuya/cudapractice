@@ -20,7 +20,6 @@ __device__ __constant__ double theta;
 
 //GPU functions-----------------------------------------------------------------
 __global__ void diffusion_global(double *field_device, double *field_device_new) {
-	//i*n+j を i+j*nとしたとき、1.結果は変わる？2.速さは変わる？
 	int i_global;
 	int j_global;
 	int i_left, i_right;
@@ -37,6 +36,27 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_device[i_global * n + j_global]
 				+ theta * (field_device[i_right * n + j_global] + field_device[i_left * n + j_global]
 					      + field_device[i_global * n + j_top] + field_device[i_global * n + j_bottom]);
+		}
+	}
+}
+
+__global__ void diffusion_global_transpose(double *field_device, double *field_device_new) {
+	int i_global;
+	int j_global;
+	int i_left, i_right;
+	int j_top, j_bottom;
+
+	i_global = blockDim.x * blockIdx.x + threadIdx.x;
+
+	if(i_global < n) {
+		i_right = (i_global + 1) % n;
+		i_left = (i_global - 1 + n) % n;
+		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
+			j_top = (j_global + 1) % n;
+			j_bottom = (j_global - 1 + n) % n;
+			field_device_new[i_global + j_global * n] = (1.0 - 4.0 * theta) * field_device[i_global + j_global * n]
+				+ theta * (field_device[i_right + j_global * n] + field_device[i_left + j_global * n]
+					      + field_device[i_global + j_top * n] + field_device[i_global + j_bottom * n]);
 		}
 	}
 }
@@ -147,6 +167,16 @@ void diffusion_host(double *field_host, double *field_host_new, int n_host, doub
 	}
 }
 
+double check_residue(double *field_host, double *field_device, int n_host) {
+	int i;
+	double residue = 0.0;
+
+	for(i = 0; i < n_host * n_host; i += 1) {
+		residue += (field_host[i] - field_device[i]) * (field_host[i] - field_device[i]);;
+	}
+	return residue;
+}
+
 int main(void) {
 //delcare variavles-------------------------------------------------------------
 	int i;
@@ -233,6 +263,28 @@ int main(void) {
 	print_field(file_write, result_global_host, n_host, l_host);
 	fclose(file_write);
 
+//calculate using only global memory--------------------------------------------
+	//initialize field------------------------------------------------------
+	init_field(field_host[0], n_host, l_host);
+	start = clock();
+	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
+	//iteration-------------------------------------------------------------
+	i = 0;
+	j = 1;
+	for(k = 0; k < iteration; k += 1) {
+		diffusion_global_transpose<<<n_blocks, dim_threads>>>(field_device[i], field_device[j]);
+		cudaDeviceSynchronize();
+		flip_ij(&i, &j);
+	}
+	//copy to host and print out--------------------------------------------
+	cudaMemcpy(result_global_host, field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
+	end = clock();
+	printf("global:%ld\n", end - start);
+	sprintf(filename_write, "result_global.txt");
+	file_write = fopen(filename_write, "w");
+	print_field(file_write, result_global_host, n_host, l_host);
+	fclose(file_write);
+
 //calculate using shared memory-------------------------------------------------
 	//initialize field------------------------------------------------------
 	init_field(field_host[0], n_host, l_host);
@@ -254,6 +306,9 @@ int main(void) {
 	file_write = fopen(filename_write, "w");
 	print_field(file_write, result_shared_host, n_host, l_host);
 	fclose(file_write);
+
+//check answers-----------------------------------------------------------------
+	printf("global:%f, shared:%f\n", check_residue(result_host, result_global_host, n_host), check_residue(result_host, result_shared_host, n_host) );
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
