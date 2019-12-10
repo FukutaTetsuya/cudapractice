@@ -40,27 +40,6 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 	}
 }
 
-__global__ void diffusion_global_transpose(double *field_device, double *field_device_new) {
-	int i_global;
-	int j_global;
-	int i_left, i_right;
-	int j_top, j_bottom;
-
-	i_global = blockDim.x * blockIdx.x + threadIdx.x;
-
-	if(i_global < n) {
-		i_right = (i_global + 1) % n;
-		i_left = (i_global - 1 + n) % n;
-		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
-			j_top = (j_global + 1) % n;
-			j_bottom = (j_global - 1 + n) % n;
-			field_device_new[i_global + j_global * n] = (1.0 - 4.0 * theta) * field_device[i_global + j_global * n]
-				+ theta * (field_device[i_right + j_global * n] + field_device[i_left + j_global * n]
-					      + field_device[i_global + j_top * n] + field_device[i_global + j_bottom * n]);
-		}
-	}
-}
-
 __global__ void diffusion_shared(double *field_device, double *field_device_new) {
 	int i_global;
 	int j_global;
@@ -96,10 +75,10 @@ __global__ void diffusion_shared(double *field_device, double *field_device_new)
 			}
 			__syncthreads();
 			//calculate field evolution-----------------------------
-			i_right = (i_shared + 1) % n_shared;
-			i_left = (i_shared - 1 + n_shared) % n_shared;
-			j_top = (j_shared + 1) % n_shared;
-			j_bottom = (j_shared - 1 + n_shared) % n_shared;
+			i_right = i_shared + 1;
+			i_left = i_shared - 1;
+			j_top = j_shared + 1;
+			j_bottom = j_shared - 1;
 			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_register
 				+ theta * (field_shared[i_right * n_shared + j_shared] + field_shared[i_left * n_shared + j_shared]
 					      + field_shared[i_shared * n_shared + j_top] + field_shared[i_shared * n_shared + j_bottom]);
@@ -172,27 +151,6 @@ void diffusion_host(double *field_host, double *field_host_new, int n_host, doub
 	}
 }
 
-void diffusion_host_transpose(double *field_host, double *field_host_new, int n_host, double theta_host) {
-	int i;
-	int j;
-	int i_right, i_left;
-	int j_top, j_bottom;
-
-	for(i = 0; i < n_host; i += 1) {
-		i_right = (i + 1) % n_host;
-		i_left = (i - 1 + n_host) % n_host;
-		for(j = 0; j < n_host; j += 1) {
-			j_top = (j + 1) % n_host;
-			j_bottom = (j - 1 + n_host) % n_host;
-			field_host_new[i + n_host * j] = (1.0 - 4.0 * theta_host) * field_host[i + n_host * j]
-				+ theta_host * (field_host[i_right + n_host * j] + field_host[i_left + n_host * j]
-					      + field_host[i + n_host * j_top] + field_host[i + n_host * j_bottom]);
-
-		}
-	}
-}
-
-
 double check_residue(double *field_host, double *field_device, int n_host) {
 	int i;
 	double residue = 0.0;
@@ -218,9 +176,7 @@ int main(void) {
 	double *field_host[2];
 	double *field_device[2];
 	double *result_host;
-	double *result_host_transpose;
 	double *result_global_host;
-	double *result_global_transpose_host;
 	double *result_shared_host;
 	FILE *file_write;
 	char filename_write[256];
@@ -244,12 +200,10 @@ int main(void) {
 	cudaHostAlloc((void **)&field_host[0], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&field_host[1], n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&result_global_host,  n_square * sizeof(double), cudaHostAllocMapped);
-	cudaHostAlloc((void **)&result_global_transpose_host,  n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&result_shared_host,  n_square * sizeof(double), cudaHostAllocMapped);
 	cudaMalloc((void **)&field_device[0], n_square * sizeof(double));
 	cudaMalloc((void **)&field_device[1], n_square * sizeof(double));
 	result_host = (double *)malloc(n_square * sizeof(double));
-	result_host_transpose = (double *)malloc(n_square * sizeof(double));
 
 //calculate on CPU--------------------------------------------------------------
 	//initialize field------------------------------------------------------
@@ -267,26 +221,6 @@ int main(void) {
 	end = clock();
 	printf("host:%ld\n", end - start);
 	/*sprintf(filename_write, "result_host.txt");
-	file_write = fopen(filename_write, "w");
-	print_field(file_write, result_host, n_host, l_host);
-	fclose(file_write);*/
-
-//calculate on CPU, transposed ver----------------------------------------------
-	//initialize field------------------------------------------------------
-	init_field(field_host[0], n_host, l_host);
-	start = clock();
-	//iteration-------------------------------------------------------------
-	i = 0;
-	j = 1;
-	for(k = 0; k < iteration; k += 1) {
-		diffusion_host_transpose(field_host[i], field_host[j], n_host, theta_host);
-		flip_ij(&i, &j);
-	}
-	//save and print out----------------------------------------------------
-	memcpy(result_host_transpose, field_host[i], n_square * sizeof(double));
-	end = clock();
-	printf("host_trans:%ld\n", end - start);
-	/*sprintf(filename_write, "result_host_transpose.txt");
 	file_write = fopen(filename_write, "w");
 	print_field(file_write, result_host, n_host, l_host);
 	fclose(file_write);*/
@@ -311,28 +245,6 @@ int main(void) {
 	/*sprintf(filename_write, "result_global.txt");
 	file_write = fopen(filename_write, "w");
 	print_field(file_write, result_global_host, n_host, l_host);
-	fclose(file_write);*/
-
-//calculate using only global memory, transposed ver----------------------------
-	//initialize field------------------------------------------------------
-	init_field(field_host[0], n_host, l_host);
-	start = clock();
-	cudaMemcpy(field_device[0], field_host[0], n_square * sizeof(double), cudaMemcpyHostToDevice);
-	//iteration-------------------------------------------------------------
-	i = 0;
-	j = 1;
-	for(k = 0; k < iteration; k += 1) {
-		diffusion_global_transpose<<<n_blocks, dim_threads>>>(field_device[i], field_device[j]);
-		cudaDeviceSynchronize();
-		flip_ij(&i, &j);
-	}
-	//copy to host and print out--------------------------------------------
-	cudaMemcpy(result_global_host, field_device[i], n_square * sizeof(double), cudaMemcpyDeviceToHost);
-	end = clock();
-	printf("global_transpose:%ld\n", end - start);
-	sprintf(filename_write, "result_global_transpose.txt");
-	/*file_write = fopen(filename_write, "w");
-	print_field(file_write, result_global_transpose_host, n_host, l_host);
 	fclose(file_write);*/
 
 //calculate using shared memory-------------------------------------------------
@@ -361,19 +273,15 @@ int main(void) {
 	printf("answers\n");
 	printf("global:%f\n", check_residue(result_host, result_global_host, n_host));
 	printf("shared:%f\n",  check_residue(result_host, result_shared_host, n_host));
-	printf("global_trans:%f\n", check_residue(result_host, result_global_transpose_host, n_host));
-	printf("host_trans:%f\n", check_residue(result_host, result_host_transpose, n_host));
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(field_host[0]);
 	cudaFreeHost(field_host[1]);
 	cudaFreeHost(result_global_host);
-	cudaFreeHost(result_global_transpose_host);
 	cudaFreeHost(result_shared_host);
 	cudaFree(field_device[0]);
 	cudaFree(field_device[1]);
 	free(result_host);
-	free(result_host_transpose);
 
 	return 0;
 }
