@@ -11,7 +11,7 @@
 /*  dimensionless time step size (theta = D * dt / dx^2)  */
 #define THETA 0.1
 /*  number of iterations  */
-#define M 200
+#define M 2000
 
 
 /*  constants on a GPU  */
@@ -33,9 +33,10 @@ __global__ void diffusion_global(double *field_device, double *field_device_new)
 		for(j_global = threadIdx.y; j_global < n; j_global += NT) {
 			j_top = (j_global + 1) % n;
 			j_bottom = (j_global - 1 + n) % n;
-			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_device[i_global * n + j_global]
+			field_device_new[i_global * n + j_global] =  field_device[i_global * n + j_global]
 				+ theta * (field_device[i_right * n + j_global] + field_device[i_left * n + j_global]
-					      + field_device[i_global * n + j_top] + field_device[i_global * n + j_bottom]);
+					      + field_device[i_global * n + j_top] + field_device[i_global * n + j_bottom]
+					      - 4.0 * field_device[i_global * n + j_global]);
 		}
 	}
 }
@@ -76,9 +77,10 @@ __global__ void diffusion_shared(double *field_device, double *field_device_new)
 			__syncthreads();
 
 			//calculate field evolution-----------------------------
-			field_device_new[i_global * n + j_global] = (1.0 - 4.0 * theta) * field_register
+			field_device_new[i_global * n + j_global] = field_register
 				+ theta * (field_shared[(i_shared + 1) * (NT + 2) + j_shared] + field_shared[(i_shared - 1) * (NT + 2) + j_shared]
-					      + field_shared[i_shared * (NT + 2) + (j_shared + 1)] + field_shared[i_shared * (NT + 2) + (j_shared - 1)]);
+					      + field_shared[i_shared * (NT + 2) + (j_shared + 1)] + field_shared[i_shared * (NT + 2) + (j_shared - 1)]
+					      - 4.0 * field_register);
 
 		}
 	}
@@ -140,9 +142,10 @@ void diffusion_host(double *field_host, double *field_host_new, int n_host, doub
 		for(j = 0; j < n_host; j += 1) {
 			j_top = (j + 1) % n_host;
 			j_bottom = (j - 1 + n_host) % n_host;
-			field_host_new[i * n_host + j] = (1.0 - 4.0 * theta_host) * field_host[i * n_host + j]
+			field_host_new[i * n_host + j] = field_host[i * n_host + j]
 				+ theta_host * (field_host[i_right * n_host + j] + field_host[i_left * n_host + j]
-					      + field_host[i * n_host + j_top] + field_host[i * n_host + j_bottom]);
+					      + field_host[i * n_host + j_top] + field_host[i * n_host + j_bottom]
+					      - 4.0 * field_host[i * n_host + j]);
 
 		}
 	}
