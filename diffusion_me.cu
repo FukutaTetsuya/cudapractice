@@ -139,9 +139,9 @@ void print_field(FILE *file_write, double *field, int n, double l) {
 	double y;
 	double d = l/(double)n;
 	for(i = 0; i < N; i += 1) {
-		y = (double)i * d;
+		y = (double)j * d;
 		for(j = 0; j < N; j += 1) {
-			x = (double)j * d;
+			x = (double)i * d;
 			fprintf(file_write, "%f %f %f\n", x, y, field[i * n + j]);
 		}
 	}
@@ -150,18 +150,18 @@ void print_field(FILE *file_write, double *field, int n, double l) {
 void diffusion_host(double *field_host, double *field_host_new, int n_host, double theta_host) {
 	int i;
 	int j;
-	int i_top, i_bottom;
-	int j_right, j_left;
+	int i_right, i_left;
+	int j_top, j_bottom;
 
 	for(i = 0; i < n_host; i += 1) {
-		i_top = (i + 1) % n_host;
-		i_bottom = (i - 1 + n_host) % n_host;
+		i_right = (i + 1) % n_host;
+		i_left = (i - 1 + n_host) % n_host;
 		for(j = 0; j < n_host; j += 1) {
-			j_right = (j + 1) % n_host;
-			j_left = (j - 1 + n_host) % n_host;
+			j_top = (j + 1) % n_host;
+			j_bottom = (j - 1 + n_host) % n_host;
 			field_host_new[i * n_host + j] = (1.0 - 4.0 * theta_host) * field_host[i * n_host + j]
-				+ theta_host * (field_host[i_top * n_host + j] + field_host[i_bottom * n_host + j]
-					      + field_host[i * n_host + j_right] + field_host[i * n_host + j_left]);
+				+ theta_host * (field_host[i_right * n_host + j] + field_host[i_left * n_host + j]
+					      + field_host[i * n_host + j_top] + field_host[i * n_host + j_bottom]);
 
 		}
 	}
@@ -170,18 +170,18 @@ void diffusion_host(double *field_host, double *field_host_new, int n_host, doub
 void diffusion_host_transpose(double *field_host, double *field_host_new, int n_host, double theta_host) {
 	int i;
 	int j;
-	int i_top, i_bottom;
-	int j_right, j_left;
+	int i_right, i_left;
+	int j_top, j_bottom;
 
 	for(i = 0; i < n_host; i += 1) {
-		i_top = (i + 1) % n_host;
-		i_bottom = (i - 1 + n_host) % n_host;
+		i_right = (i + 1) % n_host;
+		i_left = (i - 1 + n_host) % n_host;
 		for(j = 0; j < n_host; j += 1) {
-			j_right = (j + 1) % n_host;
-			j_left = (j - 1 + n_host) % n_host;
+			j_top = (j + 1) % n_host;
+			j_bottom = (j - 1 + n_host) % n_host;
 			field_host_new[i + n_host * j] = (1.0 - 4.0 * theta_host) * field_host[i + n_host * j]
-				+ theta_host * (field_host[i_top + n_host * j] + field_host[i_bottom + n_host * j]
-					      + field_host[i + n_host * j_right] + field_host[i + n_host * j_left]);
+				+ theta_host * (field_host[i_right + n_host * j] + field_host[i_left + n_host * j]
+					      + field_host[i + n_host * j_top] + field_host[i + n_host * j_bottom]);
 
 		}
 	}
