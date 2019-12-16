@@ -6,7 +6,7 @@
 #define NT 32//NT*NT threads per block
 #define NB 8//blocks to use
 #define N 600//N*N square matrix
-__device__ const int n;
+__device__ __constant__ int n;
 
 //GPU functions-----------------------------------------------------------------
 //Host functions----------------------------------------------------------------
@@ -38,6 +38,7 @@ void matrix_product_host(double *A, double *B, double *C, int n_host) {
 
 int main(void) {
 	int n_host;
+	int n_square;
 	dim3 dim_threads;
 	double *A_device;
 	double *B_device;
@@ -48,19 +49,29 @@ int main(void) {
 	double *result_host;
 	double *result_global;
 	double *result_shared;
+	clock_t start, end;
 //initialize--------------------------------------------------------------------
 	n_host = N;
-	A_host = (double *)calloc(n_host * n_host, sizeof(double));
-	B_host = (double *)calloc(n_host * n_host, sizeof(double));
-	C_host = (double *)calloc(n_host * n_host, sizeof(double));
+	n_square = n_host * n_host;
+	cudaHostAlloc((void **)&A_host, n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&B_host, n_square * sizeof(double), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&C_host, n_square * sizeof(double), cudaHostAllocMapped);
 	//set variables---------------------------------------------------------
+	cudaMemcpyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
 	init_matrix(A_host, n_host);
 	init_matrix(B_host, n_host);
 
+//calculate---------------------------------------------------------------------
+	//host------------------------------------------------------------------
+	start = clock();
+	matrix_product_host(A_host, B_host, C_host, n_host);
+	end = clock();
+	printf("%d [ms]\n", (int)(1000*(end - start)/CLOCKS_PER_SEC));
+
 //finalize----------------------------------------------------------------------
-	free(A_host);
-	free(B_host);
-	free(C_host);
+	cudaFreeHost(A_host);
+	cudaFreeHost(B_host);
+	cudaFreeHost(C_host);
 	return 0;
 }	
 
