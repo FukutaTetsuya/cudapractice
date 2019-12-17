@@ -51,27 +51,50 @@ int main(void) {
 	double *result_shared;
 	clock_t start, end;
 //initialize--------------------------------------------------------------------
+	//constants-------------------------------------------------------------
 	n_host = N;
 	n_square = n_host * n_host;
+	dim_threads.x = NT;
+	dim_threads.y = NT;
+	dim_threads.z = 1;
+	cudaMemcpyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
+
+	//allocate--------------------------------------------------------------
 	cudaHostAlloc((void **)&A_host, n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&B_host, n_square * sizeof(double), cudaHostAllocMapped);
 	cudaHostAlloc((void **)&C_host, n_square * sizeof(double), cudaHostAllocMapped);
-	//set variables---------------------------------------------------------
-	cudaMemcpyToSymbol(n, &n_host, sizeof(int), 0, cudaMemcpyHostToDevice);
+	result_host = (double *)calloc(n_square, sizeof(double));
+	result_global = (double *)calloc(n_square, sizeof(double));
+
+	cudaMalloc((void **)&A_device, n_square * sizeof(double));
+	cudaMalloc((void **)&B_device, n_square * sizeof(double));
+	cudaMalloc((void **)&C_device, n_square * sizeof(double));
+
+	//init matrix------------------------------------------------------------
 	init_matrix(A_host, n_host);
 	init_matrix(B_host, n_host);
+	cudaMemcpy(A_host, A_device, n_square * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(B_host, B_device, n_square * sizeof(double), cudaMemcpyHostToDevice);
 
 //calculate---------------------------------------------------------------------
 	//host------------------------------------------------------------------
 	start = clock();
 	matrix_product_host(A_host, B_host, C_host, n_host);
 	end = clock();
+	memcpy(result_host, C_host, n_square * sizeof(double));
 	printf("%d [ms]\n", (int)(1000*(end - start)/CLOCKS_PER_SEC));
+
+	//global----------------------------------------------------------------
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(A_host);
 	cudaFreeHost(B_host);
 	cudaFreeHost(C_host);
+	free(result_host);
+
+	cudaFree(A_device);
+	cudaFree(B_device);
+	cudaFree(C_device);
 	return 0;
 }	
 
