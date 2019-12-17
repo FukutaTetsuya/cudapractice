@@ -6,16 +6,36 @@
 #define NT 32//NT*NT threads per block
 #define NB 8//blocks to use
 #define N 600//N*N square matrix
-__device__ __constant__ int n;
+__device__ __constant__ int n;//n = N
 
 //GPU functions-----------------------------------------------------------------
+__global__ void matrix_product_global(double *A_device, double *B_device, double *C_device) {
+	//1 thread 1 C element
+	int i_global, j_global;
+	int i, j, k;
+	double temp;
+
+	i_global = blockDim.x * blockIdx.x + threadIdx.x;
+	j_global = threadIdx.y;
+
+	for(i = i_global; i < n; i += NB * NT) {
+		for(j = j_global; j < n; j += NT) {
+			temp = 0.0;
+			for(k = 0; k < n; k += 1) {
+				temp += A_device[i * n + k] * B_device[k * n + j];
+			}
+			C_device[i * n + j] = temp;
+		}
+	}
+}
+
 //Host functions----------------------------------------------------------------
 void init_matrix(double *matrix, int n_host) {
 	int i;
 	int j;
 	for(i = 0; i < n_host; i += 1) {
 		for(j = 0; j < n_host; j += 1) {
-			matrix[i + n_host * j] = 1.0;
+			matrix[i * n_host + j] = (double)rand() / (double)RAND_MAX;
 		}
 	}
 }
@@ -29,11 +49,20 @@ void matrix_product_host(double *A, double *B, double *C, int n_host) {
 			//ij loop for each component of matrix C
 			temporal = 0.0;
 			for(k = 0; k < n_host; k += 1) {
-				temporal += A[i + n_host * k] * B[k + n_host * j];
+				temporal += A[i * n_host + k] * B[k * n_host + j];
 			}
-			C[i + n_host * j] = temporal;
+			C[i * n_host + j] = temporal;
 		}
 	}
+}
+
+double calc_deviation(double *M1, double *M2, int n_host) {
+	int i;
+	double devi = 0.0;
+	for(i = 0; i < n_host; i += 1) {
+		devi += (M1[i] - M2[i]) * (M1[i] - M2[i]);
+	}
+	return devi;
 }
 
 int main(void) {
@@ -73,8 +102,8 @@ int main(void) {
 	//init matrix------------------------------------------------------------
 	init_matrix(A_host, n_host);
 	init_matrix(B_host, n_host);
-	cudaMemcpy(A_host, A_device, n_square * sizeof(double), cudaMemcpyHostToDevice);
-	cudaMemcpy(B_host, B_device, n_square * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(A_device, A_host, n_square * sizeof(double), cudaMemcpyHostToDevice);
+	cudaMemcpy(B_device, B_host, n_square * sizeof(double), cudaMemcpyHostToDevice);
 
 //calculate---------------------------------------------------------------------
 	//host------------------------------------------------------------------
@@ -85,6 +114,16 @@ int main(void) {
 	printf("%d [ms]\n", (int)(1000*(end - start)/CLOCKS_PER_SEC));
 
 	//global----------------------------------------------------------------
+	start = clock();
+	matrix_product_global<<<NB, dim_threads>>>(A_device, B_device, C_device);
+	cudaDeviceSynchronize();
+	end = clock();
+	cudaMemcpy(result_global, C_device, n_square * sizeof(double), cudaMemcpyDeviceToHost);
+	printf("%d [ms]\n", (int)(1000*(end - start)/CLOCKS_PER_SEC));
+
+//check the answers-------------------------------------------------------------
+	printf("check\n");
+	printf("global:%f\n", calc_deviation(result_host, result_global, n_host));
 
 //finalize----------------------------------------------------------------------
 	cudaFreeHost(A_host);
