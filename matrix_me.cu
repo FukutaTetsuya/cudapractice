@@ -35,6 +35,21 @@ __global__ void matrix_product_global(double *A_device, double *B_device, double
 __global__ void matrix_product_shared(double *A_device, double *B_device, double *C_device) {
 	//devide A,B,C into small blocks
 	//arbitrary dimensional matrix
+	int i_global, j_global;
+	int i_local, j_local;
+	int i_offset, j_offset;
+	int i, j, k;
+	__shared__ double a[NT * NT];
+	__shared__ double b[NT * NT];
+	i_local = threadIdx.x;
+	j_local = threadIdx.y;
+	for(i_offset = 0; i_goffset < n; i_goffset += NT * NB) {
+		for(j_offset = 0; j_offset < n; j_offset += NT) {
+			//load global to shared
+			for(k = 0; k < NT; k += 1) {
+			}
+		}
+	}
 }
 
 //Host functions----------------------------------------------------------------
@@ -43,7 +58,8 @@ void init_matrix(double *matrix, int n_host) {
 	int j;
 	for(i = 0; i < n_host; i += 1) {
 		for(j = 0; j < n_host; j += 1) {
-			matrix[i * n_host + j] = (double)rand() / (double)RAND_MAX;
+			//matrix[i * n_host + j] = (double)rand() / (double)RAND_MAX;
+			matrix[i * n_host + j] = 1.0;
 		}
 	}
 }
