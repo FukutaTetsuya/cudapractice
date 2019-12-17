@@ -1,3 +1,6 @@
+/*
+ *C_ij =  C[i * n + j]とする
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -27,6 +30,11 @@ __global__ void matrix_product_global(double *A_device, double *B_device, double
 			C_device[i * n + j] = temp;
 		}
 	}
+}
+
+__global__ void matrix_product_shared(double *A_device, double *B_device, double *C_device) {
+	//devide A,B,C into small blocks
+	//arbitrary dimensional matrix
 }
 
 //Host functions----------------------------------------------------------------
