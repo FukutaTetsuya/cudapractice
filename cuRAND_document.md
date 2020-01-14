@@ -1,4 +1,4 @@
-# cuRANDのドキュメント
+# cuRANDのドキュメント1章2章(ホストAPI)
 https://docs.nvidia.com/cuda/curand/index.html
 
 (↑を元に訳した、英弱かつ情弱奴が自分用に作ったものなので
@@ -115,11 +115,10 @@ GPUの各スレッドで作られた乱数を<br>
 
 |名前|種類|備考|
 |:--|:--|:--|
-|`CURAND_ORDERING_PSEUDO_DEFAULT`|疑似乱数用|
+|`CURAND_ORDERING_PSEUDO_DEFAULT`|疑似乱数用|すべてのcuRANDのバージョンで同じ結果になることが保証されている。
 |`CURAND_ORDERING_PSEUDO_BEST`|同上|MT19937以外では`CURAND_ORDERING_PSEUDO_DEFAULT`と同じ結果になる。<br>cuRANDのアップデートによって`CURAND_ORDERING_PSEUDO_BEST`の<br>速度と精度を高める予定(20200113)。<br>ただし、乱数が決定論的なものであり<br>プログラムを走らせるたびに同じ結果になるという点は変えない。
 |`CURAND_ORDERING_PSEUDO_SEEDED`|同上|
 |`CURAND_ORDERING_QUASI_DEFAULT`|準乱数用|
-|`CURAND_ORDERING_PSEUDO_DEFAULT`|疑似乱数用|すべてのcuRANDのバージョンで同じ結果になることが保証されている。
 
 (乱数生成器の種類と格納順の組み合わせごとの振る舞いが述べられているが、略fkt)<br>
 
@@ -136,7 +135,13 @@ GPUの各スレッドで作られた乱数を<br>
 - MT19937
 	- `CURAND_ORDERING_PSEUDO_DEFAULT` 
 
-		(よくわからんfkt)<br>
+		格納の順序はCPU上でのMT19937の実装に強く依存している。(とはfkt)<br>
+		MT19937を使ったカーネルの裏では8192個の独立な乱数生成器が動いている。<br>
+		オリジナルのMTが作り出す乱数列の2^{1000}要素ずつを<br>
+		それぞれの生成器が作り出す。<br>
+		またそれぞれの生成器は8個ずつ乱数を作り出す。<br>
+		速度を上げるため格納順はオリジナルのMTとは異なる。<br>
+		格納順は、ハードウェアに依存しない。<br>
 	- `CURAND_ORDERING_PSEUDO_BEST`
 
 		速度を上げるために`CURAND_ORDERING_PSEUDO_DEFAULT`からの変更点がある<br>
@@ -146,22 +151,179 @@ GPUの各スレッドで作られた乱数を<br>
 		"generate seed"(シードの生成？fkt)は`CURAND_ORDERING_PSEUDO_DEFAULT`より<br>
 		こちらのほうがかなり速い。<br>
 
+## 2.3.戻り値
+ホストのcuRANDライブラリはすべて、`curandStatus_t`型の戻り値を返す。<br>
+エラーなく呼び出せた場合、`CURAND_STATUS_SUCCESS`を返す。<br>
+エラーが起こった場合、エラーに応じて`CURAND_STATUS_SUCCESS`とは異なる値を返す。<br>
+CUDAではカーネル(デバイスを動かす関数かfkt)が<br>
+CPUのコードとは非同期的に実行される。<br>
+そのため、cuRANDの関数を走らせている間に<br>
+cuRANDではないカーネルでエラーが生じることがある。<br>
+この時、cuRANDの関数は`CURAND_STATUS_PREEXISTING_ERROR`を返す。<br>
 
+## 2.4.乱数を生成する関数(generation functions)
+(色々作れるが、全部はめんどいので書かない。詳細はこのファイルの最上部にあるリンクからfkt)<br>
+ランダムなビット列、一様分布、正規分布、対数正規分布、ポアソン分布を作れるらしい。<br>
 
+--------------------
+```
+curandStatus_t 
+curandGenerate(
+    curandGenerator_t generator, 
+    unsigned int *outputPtr, size_t num)    
+```
+`curandGenerate()`は戻り値が`curandStatus_t`型である。<br>
+第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
+指定できるのは(2.1.参照fkt)、XOROWOW, MRG32k3a,<br>
+MTGP32, MT19937, Philox\_4x32\_10, SOBOL32。<br>
+(第二引数はデバイス上の`uns int`型配列へのポインタである。fkt)<br>
+出力されるのは、全てのビットがランダムな32bit uns intの数列である。<br>
+(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
 
+--------------------
+```
+curandStatus_t 
+curandGenerateLongLong(
+    curandGenerator_t generator, 
+    unsigned long long *outputPtr, size_t num)
+```
+`curandGenerateLongLong()`は戻り値が`curandStatus_t`型である。<br>
+第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
+使用できるのは、SOBOL64である。<br>
+(第二引数はデバイス上の`uns long long int`型配列へのポインタである。fkt)<br>
+出力されるのは、全てのビットがランダムな64bit uns long long intの数列である。<br>
+(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
 
+--------------------
+```
+curandStatus_t
+curandGenerateUniformDouble(
+    curandGenerator_t generator,
+    double *outputPtr, size_t n)
+```
+`curandGenerateUniformDouble()`は戻り値が`curandStatus_t`型である。<br>
+第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
+(使える生成器の種類は書いてないfkt)<br>
+(第二引数はデバイス上の`double`型配列へのポインタである。fkt)<br>
+出力されるのは、倍精度の一様乱数である。<br>
+(`curandGenerateUniform()`同様、範囲は(0,1]と思われる。fkt)<br>
+(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
 
+--------------------
 
+同じ乱数生成関数をなんども呼び出して、いくつもの乱数列を得ることができる。<br>
+擬似乱数の生成器では、なんども呼び出して得られた乱数列を繋げたものと<br>
+いっぺんに作った同じ長さの乱数列の中身は同一である。<br>
+準乱数については、(理由はよくわからんがfkt)異なる結果が得られる。<br>
 
+倍精度を扱えるのは1.3世代以降のハードだけである。<br>
 
+## 2.5.ホストAPIのサンプル
+(自分なりに書いてみた、原文の方がいい感じに仕上げてあるfkt)<br>
+```
+/*
+   *準乱数生成器のseedはどうやって与える？
+   */
+#include<stdio.h>
+#include<time.h>
+#include<curand.h>
+#include<cuda.h>
 
+int main(void) {
+	float *d_array_rei;
+	float *d_array_mari;
+	float *h_array_rei;
+	float *h_array_mari;
+	size_t n = 16384;
+	unsigned int dimension = 2;
+	float mean = 0.0;
+	float standard_deviation = 1.0;
+	int i;
+	//これが乱数生成器を指す名前的なもの
+	//二つ作ってみる
+	curandGenerator_t rei, mari;
+	
+	//デバイスとホストにメモリを確保する
+	cudaMalloc((void **)&d_array_rei, n * sizeof(float));
+	cudaMalloc((void **)&d_array_mari, n * sizeof(float));
+	cudaHostAlloc((void **)&h_array_rei, n * sizeof(float), cudaHostAllocMapped);
+	cudaHostAlloc((void **)&h_array_mari, n * sizeof(float), cudaHostAllocMapped);
 
+	//乱数生成器を作る
+	//\->reiはXORWOWというアルゴリズムを使い擬似乱数を作る乱数生成器とする
+	curandCreateGenerator(&rei, CURAND_RNG_PSEUDO_XORWOW);
+	//\->mariはSOBOLというアルゴリズムを使い準乱数を作る乱数生成器とする
+	curandCreateGenerator(&mari, CURAND_RNG_QUASI_SOBOL32);
 
+	//乱数生成器にシードを与える。ULLは型、64bit符号なし整数
+	//\->準乱数生成器を初期化する関数がわからないので
+	//    mariはそのままつかう
+	curandSetPseudoRandomGeneratorSeed(rei, 890106ULL);
+	//\->time()を使うならこちら
+	//curandSetPseudoRandomGeneratorSeed(rei, (unsigned long)time(NULL));
 
+	//オフセットを伝える。これも64bit符号なし整数で指定する
+	//\->reiにだけオフセットを設け、mariはオフセットなしとする
+	curandSetGeneratorOffset(rei, 5ULL);
 
+	//rei,mariに格納順を伝える、どちらもデフォルトでよかろう
+	curandSetGeneratorOrdering(rei, CURAND_ORDERING_PSEUDO_DEFAULT);
+	curandSetGeneratorOrdering(mari, CURAND_ORDERING_QUASI_DEFAULT);
 
+	//準乱数については、何次元空間で均一に分布するかを指定できる
+	curandSetQuasiRandomGeneratorDimensions(mari, dimension);
 
+	//n個だけ乱数を作らせ、結果をd_arrayに収める
+	//\->reiにはfloatの一様乱数をつくらせる
+	curandGenerateUniform(rei, d_array_rei, n);
+	//\->mariにはfloatの正規分布乱数をつくらせる
+	curandGenerateNormal(mari, d_array_mari, n, mean, standard_deviation);
 
+	//デバイスからホストへ生成された乱数を持ってくる
+	cudaMemcpy(h_array_rei, d_array_rei, n * sizeof(float), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_array_mari, d_array_mari, n * sizeof(float), cudaMemcpyDeviceToHost);
 
+	printf("rei's result\n");
+	for(i = 0; i < 10; i += 1) {
+		printf("%d:%f\n", i, h_array_rei[i]);
+	}
+	printf("mari's result\n");
+	for(i = 0; i < 10; i += 1) {
+		printf("%d:%f\n", i, h_array_mari[i]);
+	}
 
+	//乱数生成器を消す
+	curandDestroyGenerator(rei);
+	curandDestroyGenerator(mari);
+	//デバイスとホストのメモリを解放する
+	cudaFree(d_array_rei);
+	cudaFree(d_array_mari);
+	cudaFreeHost(h_array_rei);
+	cudaFreeHost(h_array_mari);
+	return 0;
+}
+```
 
+## 2.6.静的ライブラリの使用について
+わかんね<br>
+コンパイルはこんな感じにすべき
+```
+nvcc -arch=sm_60 -lcurand
+```
+
+## 2.7.実行速度についての但し書き
+乱数生成は、なるべく大きい塊で作るのがよい。ちょっとずつ作るのは効率が悪い。<br>
+
+デフォルトの乱数生成器であるXORWOWをデフォルトの乱数格納順で呼び出すと、<br>
+初回だけ立ち上げに時間がかかる。<br>
+立ち上げに時間がかかるのを避けるには、格納順に`CURAND_ORDERING_PSEUDO_SEEDED`を指定する。<br>
+
+乱数生成器にMTGP32を使う時、16384個ずつ乱数を作るのが一番速い。<br>
+(これは仕様らしいが理由はよくわからんfkt)<br>
+
+乱数生成器にMT19937を使う時、一番速いのは2GBより多いデータを作る時。<br>
+最高速の8割を得られるのは、80MB以上のデータを作る時。<br>
+(これは仕様らしいが理由はよくわからんfkt)<br>
+
+乱数生成器にPhilox_4x32_10を使う時、一番速いのは(スレッド数x4)個の乱数列を作る時。<br>
+1スレッドが4個の乱数をつくるから。<br>
