@@ -1,4 +1,4 @@
-# cuRANDのドキュメント1章2章(ホストAPI)
+# cuRANDのドキュメント
 https://docs.nvidia.com/cuda/curand/index.html
 
 (↑を元に訳した、英弱かつ情弱奴が自分用に作ったものなので
@@ -44,9 +44,10 @@ cuRAND以外のライブラリと同様に、`/include/curand.h`を<br>
 `curand.h`をインクルードせよ。<br>
 CUDAランタイムを使え。<br>
 
-乱数を作り出すのは生成器である。<br>
-cuRANDの中の生成器は乱数列を作るのに必要なすべての内部状態を含んでいる。<br>
-乱数生成の手順は通常次のようなものである。<br>
+乱数を作り出すのは乱数生成器である。<br>
+cuRANDの中の生成器(curandGenerator\_t型で宣言される、乱数生成器として扱われる何かfkt)は<br>
+乱数列を作るのに必要なすべての内部状態を含んでいる。<br>
+乱数生成の手順は通常次のようなものである。(2.5.に実例)<br>
 
 1. `curandCreateGenerator()`でほしい種類の(後述)乱数生成器をつくる。
 1. 生成器のオプションを指定する(シードなど)。
@@ -173,12 +174,12 @@ curandGenerate(
     unsigned int *outputPtr, size_t num)    
 ```
 `curandGenerate()`は戻り値が`curandStatus_t`型である。<br>
-第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
-指定できるのは(2.1.参照fkt)、XOROWOW, MRG32k3a,<br>
-MTGP32, MT19937, Philox\_4x32\_10, SOBOL32。<br>
+(第一引数は`curandGenerator_t`型変数で、乱数を作らせたい乱数生成器の名前を入れる。fkt)<br>
+`curandGenerate()`で使える乱数生成器の種類は(2.1.参照fkt)、<br>
+XOROWOW, MRG32k3a, MTGP32, MT19937, Philox\_4x32\_10, SOBOL32。<br>
 (第二引数はデバイス上の`uns int`型配列へのポインタである。fkt)<br>
 出力されるのは、全てのビットがランダムな32bit uns intの数列である。<br>
-(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
+(第三引数は`size_t`型変数で、生成する数列の要素数を指定する。fkt)<br>
 
 --------------------
 ```
@@ -188,11 +189,11 @@ curandGenerateLongLong(
     unsigned long long *outputPtr, size_t num)
 ```
 `curandGenerateLongLong()`は戻り値が`curandStatus_t`型である。<br>
-第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
-使用できるのは、SOBOL64である。<br>
+(第一引数は`curandGenerator_t`型変数で、乱数を作らせたい乱数生成器の名前を入れる。fkt)<br>
+`curandGenerateLongLong()`で使用できる生成器の種類は、SOBOL64である。<br>
 (第二引数はデバイス上の`uns long long int`型配列へのポインタである。fkt)<br>
 出力されるのは、全てのビットがランダムな64bit uns long long intの数列である。<br>
-(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
+(第三引数は`size_t`型変数で、生成する数列の要素数を指定する。fkt)<br>
 
 --------------------
 ```
@@ -202,12 +203,12 @@ curandGenerateUniformDouble(
     double *outputPtr, size_t n)
 ```
 `curandGenerateUniformDouble()`は戻り値が`curandStatus_t`型である。<br>
-第一引数は`curandGenerator_t`型変数で、乱数生成器の種類を指定する。<br>
+(第一引数は`curandGenerator_t`型変数で、乱数を作らせたい乱数生成器の名前を入れる。fkt)<br>
 (使える生成器の種類は書いてないfkt)<br>
 (第二引数はデバイス上の`double`型配列へのポインタである。fkt)<br>
 出力されるのは、倍精度の一様乱数である。<br>
 (`curandGenerateUniform()`同様、範囲は(0,1]と思われる。fkt)<br>
-(第三引数は`size_t`型変数で、多分生成する数列の要素数を指定する。fkt)<br>
+(第三引数は`size_t`型変数で、生成する数列の要素数を指定する。fkt)<br>
 
 --------------------
 
@@ -308,7 +309,7 @@ int main(void) {
 わかんね<br>
 コンパイルはこんな感じにすべき
 ```
-nvcc -arch=sm_60 -lcurand
+nvcc -arch=sm_60 -lcurand genRandomNumber.cu
 ```
 
 ## 2.7.実行速度についての但し書き
@@ -327,3 +328,88 @@ nvcc -arch=sm_60 -lcurand
 
 乱数生成器にPhilox_4x32_10を使う時、一番速いのは(スレッド数x4)個の乱数列を作る時。<br>
 1スレッドが4個の乱数をつくるから。<br>
+
+# 3.デバイスAPIの概略
+デバイスAPIを使うには、`curand_kernel.h`をインクルードする。<br>
+この中にcuRANDのデバイスの関数が定義されている。<br>
+擬似乱数の生成と準乱数の生成を行う関数が含まれる。<br>
+
+## 3.1.擬似乱数列
+ランダムビット列生成と、分布を指定した乱数列生成が可能である。<br>
+### 3.1.1.XORWOW, MRG32k3aを使った生成器によるビット列生成
+(略fkt)
+### 3.1.2.MTGP32を使った生成器によるビット列生成
+(まだ実装してないのでよくわかってないfkt)<br>
+広島大で作られたコードを応用したもの(SAITO Mutsuo arxiv 2010)。<br>
+
+>このアルゴリズムにおいて、サンプル(**R**からの？fkt)が<br>
+>複数のシーケンスのために作られる。<br>
+>それぞれのシーケンスは各自パラメタの組に基づいて行われる。<br>
+>cuRANDは200個のパラメタの組を使う。<br>
+>このパラメタの組は2^{11214}の周期を持つ<br>
+>32bit乱数生成器のためにすでに用意されている。<br>
+>異なるパラメタの組を使うこともできる。<br>
+>一つのパラメタの組、すなわち一つのシーケンスのために一つの<br>
+>state structure(生成器の状態を収める構造体？fkt)が存在する。<br>
+>MTGP32のアルゴリズムによってスレッドセーフに生成器の状態を更新し<br>
+>乱数を生成することができる。<br>
+
+(以下、読解が怪しいままの意訳)<br>
+デバイスから呼ぶことができるように、
+デバイス上に乱数生成器を作ろうということ。<br>
+同じブロックに属する複数(最大256)のスレッドから<br>
+同じ一つの乱数生成器を呼び出して使うことができる。<br>
+で、一つの乱数生成器は200個のパラメタからなるパラメタの組<br>
+(シーケンス、sequence, parameter set)を内部状態として使う。<br>
+このシーケンスをひとまとめにして構造体に収めている？<br>
+乱数生成器を作る時にはホストAPIの`curandSetPseudoRandomGeneratorSeed()`のように<br>
+生成器の初期内部状態(初期シーケンス)を指定する必要がある。<br>
+で、cuRANDはその初期シーケンスのプリセットを用意してくれている。<br>
+この初期シーケンスは2^{11214}の周期を持つ32bit乱数生成器で<br>
+作ったものである。<br>
+初期シーケンスを他の方法で用意することもできる。(MTGPに関する広島大の論文を見よ。)<br>
+(以上、読解が怪しいままの意訳fkt)<br>
+
+注意。異なるブロックから同じ状態パラメタを安全に操作することはできない。<br>
+注意。同じブロックの中からでも、一組の状態パラメタを<br>
+操作できるのは最大で256スレッドである。<br>
+
+MTGP32を使ったデバイス上の乱数生成器に関してホストの関数が2つある。
+デバイスのメモリに入っているシーケンス(の元であるパラメタ)を
+設定するのを助け、また、初期シーケンスを設定するための関数である。
+
+---
+```
+__host__ curandStatus_t curandMakeMTGP32Constants(mtgp32_params_fast_t params[],
+						mtgp32_kernel_params_t *p)
+//(原文では引数の型のハイフンが消えているが、ミスと思われfkt)
+```
+`curandMakeMTGP32Constants`は、<br>
+`mtgp32_params_fast_t`型で用意しておいた
+初期シーケンス`params[]`を<br>
+デバイス上の関数で使える`mtgp32_kernel_params_t`型に変換し、<br>
+デバイス上のメモリ`p`にコピーする。<br>
+
+---
+```
+__host__ curandStatus_t
+curandMakeMTGP32KernelState(curandStateMtgp32_t *s,
+				mtgp32_params_fast_t params[],
+				mtgp32_kernel_params_t *k,
+				int n,
+				unsigned long long seed)
+//(第三引数kがcurandMakeMTGP32Constantsと同じpではないのは何か含意がある？fkt)
+```
+`curandMakeMTGP32KernelState`は、`n`個の状態(シーケンス)を<br>
+初期シーケンス`params[]`とシード`seed`に基づいて初期化し、<br>
+その結果を`s`の指すデバイス上のメモリにコピーする。<br>
+(乱数生成器が実際生成に使うシーケンスはsである？fkt)<br>
+注意。プリセットのシーケンスを使う場合、`n`の最大値は200である。<br>
+
+
+---
+
+### 3.1.3.Philox_4x32_10を使った生成器によるビット列生成
+(略fkt)
+### 3.1.4.特定の分布をもつ乱数列(distribution)
+(大量のバリエーションがあるので略fkt)<br>
