@@ -7,6 +7,9 @@ https://docs.nvidia.com/cuda/curand/index.html
 デバイスAPIのMTGP32のあたりで、
 状態ベクトル(state array)とパラメタの組(parameter set, sequence)を混同している模様。
 
+cudaHostAlloc()は濫用すると遅くなるらしいので、
+頻繁にデバイスから参照されるような配列だけに使うのがよかろう。
+
 # 始めに
 
 cuRANDライブラリは擬似乱数(pseudorandom)<br>
@@ -342,7 +345,7 @@ nvcc -arch=sm_60 -lcurand genRandomNumber.cu
 ### 3.1.1.XORWOW, MRG32k3aを使った生成器によるビット列生成
 (略fkt)
 ### 3.1.2.MTGP32を使った生成器によるビット列生成
-(まだ実装してないのでよくわかってないfkt)<br>
+(アルゴリズムについて重大な勘違いがある気がするがよくわからないfkt)<br>
 広島大で作られたコードを応用したもの(SAITO Mutsuo arxiv 2010)。<br>
 
 >このアルゴリズムにおいて、サンプル(**R**からの？fkt)が<br>
@@ -384,7 +387,7 @@ MTGP32を使ったデバイス上の乱数生成器に関してホストの関�
 ```
 __host__ curandStatus_t curandMakeMTGP32Constants(mtgp32_params_fast_t params[],
 						mtgp32_kernel_params_t *p)
-//(原文では引数の型のハイフンが消えているが、ミスと思われfkt)
+//(原文では引数の型のアンダーバーが消えているが、ミスと思われfkt)
 ```
 `curandMakeMTGP32Constants`は、<br>
 `mtgp32_params_fast_t`型で用意しておいた初期シーケンス`params[]`を<br>
@@ -413,13 +416,15 @@ MTGP32を使ったデバイス上の乱数生成器でランダムなビット�
 デバイスの関数が二つある。<br>
 
 ---
+
 ```
 __device__ unsigned int
-curand (curandStateMtgp32_t *state)
+curand(curandStateMtgp32_t *state)
 ```
+
 この関数はスレッドの番号(index)を計算し、<br>
-そのスレッドのために(generate a result for that indexどう訳す？fkt)<br>
-乱数を計算して乱数生成器の状態(シーケンス)を更新する。<br>
+そのスレッド番号に対して乱数を計算し、<br>
+乱数生成器の状態(シーケンス)を更新する。<br>
 スレッド番号`t`の決め方は、<br>
 `t= (blockDim.x * blockDim.y * threadIdx.z) + (blockDim.x * threadIdx.y) + threadIdx.x`<br>
 である。<br>
@@ -439,20 +444,21 @@ curand (curandStateMtgp32_t *state)
 ---
 ```
 __device__ unsigned int
-curandmtgp32specific(curandStateMtgp32_t *state, unsigned char index,
+curand_mtgp32_specific(curandStateMtgp32_t *state, unsigned char index,
 			unsigned char n)
+//(原文では関数名中のアンダーバーが消えているが、ミスと思われfkt)
 ```
-この関数`curandmtgp32specific()`は、<br>
+この関数`curand_mtgp32_specific()`は、<br>
 スレッド固有の場所を示す`index`に基づいて乱数を計算し、<br>
-シーケンスのオフセットを`n`だけ進める。<br>
-この関数`curandmtgp32specific()`を、以下の条件のもと<br>
+乱数生成器の内部状態のオフセットを`n`だけ進める。<br>
+この関数`curand_mtgp32_specific()`を、以下の条件のもと<br>
 一度のカーネルの立ち上げのなかで繰り返し呼び出すことができる。<br>
 
 - 一つのシーケンスを同時に使うことができるスレッド数は256本までである。<br>
 - 一つのブロックの中で、一つのシーケンスを`n`本のスレッドが呼び出すとする。<br>
 	`index`は、`0..n-1`を走るものである必要がある。<br>
 	このインデックスはスレッド番号と一致しなくても良い。<br>
-	このインデックスは、`curandmtgp32specific()`を呼び出す関数の中で<br>
+	このインデックスは、`curand_mtgp32_specific()`を呼び出す関数の中で<br>
 	スレッドごとに割り振る。<br>
 	インデックス`0..n-1`は、それらの全てが使われるか、<br>
 	それらの全てが使われないかのどちらかでなくてはいけない。<br>
@@ -468,11 +474,165 @@ curandmtgp32specific(curandStateMtgp32_t *state, unsigned char index,
 ### 3.1.3.Philox_4x32_10を使った生成器によるビット列生成
 (略fkt)
 ### 3.1.4.特定の分布をもつ乱数列(distribution)
-(大量のバリエーションがあるので略fkt)<br>
+
+---
+```
+__device__ float
+curand_uniform(curandState_t *state)
+```
+`curand_uniform()`は(0,1]の一様乱数を返す。<br>
+unsigned int型の乱数を作る元々の乱数生成器の結果をつかって<br>
+(0,1]の一様乱数を作っている。<br>
+一つの実数乱数を作るために<br>
+元々の乱数生成器で作られる乱数をいくつ消費するかは、<br>
+定まっていない。<br>
+
+---
+
+(他にもバリエーションがあるが略fkt)<br>
+
 ## 3.2.準乱数列
 ## 3.3.頭切り(skip-ahead)
 ## 3.4.デバイス上での離散分布の生成
 ## 3.5.性能についての注意書き
 ## 3.6.デバイスAPIのコードの例
+(自分なりに書いてみた、原文の方がいい感じに仕上げてあるfkt)<br>
+
+```
+/*
+   *デバイス上でMTGP32を使って乱数を生成してみる
+   */
+#include<stdio.h>
+#include<time.h>
+#include<cuda.h>
+
+//デバイスAPIをインクルード
+#include<curand_kernel.h>
+
+//mtgp32を使う乱数生成器のセットアップに使うホストの関数をインクルード
+#include<curand_mtgp32_host.h>
+
+//mtgp32で使うシーケンス(パラメタの組)のプリセットをインクルード
+//このヘッダの中に、mtgp32_params_fast_t型でプリセットのシーケンスが入っている
+//プリセットの名前は`mtgp32dc_params_fast_11213`
+#include<curand_mtgp32dc_p_11213.h>
+
+//デバイスのカーネルを呼び出すときに指定するスレッド数・ブロック数
+//スレッド数はmtgp32のデバイスAPIを使う限り、256以下でなくてはならない
+#define NUM_THREAD 8
+#define NUM_BLOCK 4
+
+void check_cuda_funcs_executed_right(cudaError_t status) {
+	if(status != cudaSuccess) {
+		printf("error cuda funcs\n");
+		exit(1);
+	}
+}
+
+void check_curand_funcs_executed_right(curandStatus_t status) {
+	if(status != CURAND_STATUS_SUCCESS) {
+		printf("error curand funcs\n");
+		exit(1);
+	}
+}
+
+__global__ void generate_and_printf_random(curandStateMtgp32_t *state) {
+	int a;
+	a = curand(&state[blockIdx.x]);
+	printf("(%d,%d):%d\n", blockIdx.x, threadIdx.x, a);
+}
+
+__global__ void generate_and_printf_random_float(curandStateMtgp32_t *state) {
+	float a;
+	a = curand_uniform(&state[blockIdx.x]);
+	printf("(%d,%d):%f\n", blockIdx.x, threadIdx.x, a);
+}
+
+
+__global__ void generate_and_printf_random_specific(curandStateMtgp32_t *state) {
+	int a;
+	if(NUM_THREAD >= 2) {
+		if(threadIdx.x == 0) {
+			a = curand_mtgp32_specific(&state[blockIdx.x], 0, 2);
+			printf("(%d,%d):%d\n", blockIdx.x, threadIdx.x, a);
+		} else if(threadIdx.x == 1) {
+			a = curand_mtgp32_specific(&state[blockIdx.x], 1, 2);
+			printf("(%d,%d):%d\n", blockIdx.x, threadIdx.x, a);
+		} else {
+		}
+	}
+}
+
+int main(void) {
+	//デバイス上の変数・配列
+	//\->シーケンス(パラメタの組)が入る配列
+	mtgp32_kernel_params_t *dev_parameters_sequence;
+	//\->乱数生成器の内部状態が入る配列
+	//   curandStateMtgp32_t型変数一つの中に1024個の整数が入っていて、
+	//   curandStateMtgp32_t型変数一つがMTGP32乱数生成器一つに対応する
+	curandStateMtgp32_t *dev_generator_state;
+
+	//ホスト上の変数・配列
+	unsigned long long seed;
+	seed = (unsigned long long)time(NULL);
+
+	//配列を確保
+	//\->ホスト
+	//_\->今回は生成器の内部状態をブロック数の分だけ作る
+	//     そして一ブロックあたり一つの生成器を使う
+	check_cuda_funcs_executed_right (
+		cudaMalloc((void **)&dev_generator_state, NUM_BLOCK * sizeof(curandStateMtgp32_t))
+	);
+	//_\->シーケンスを収める配列
+	//    シーケンスは一つでいいの？
+	check_cuda_funcs_executed_right (
+		cudaMalloc((void **)&dev_parameters_sequence, sizeof(mtgp32_kernel_params_t))
+	);
+
+	//セットアップ
+	//\->シーケンスをプリセットを使って設定
+	check_curand_funcs_executed_right(
+			curandMakeMTGP32Constants(mtgp32dc_params_fast_11213, dev_parameters_sequence)
+	);
+	//\->乱数生成器の内部状態を設定
+	//   今回は生成器を一ブロックあたり一つ用意するので、第四引数がNUM_BLOCKとなっている
+	//   dev_generator_stateをセットするのにmtgp32dc_params_fast_11213を使ったのに
+	//   ここでその両方を呼ぶのはなんでだろう
+	check_curand_funcs_executed_right(
+			curandMakeMTGP32KernelState(
+				dev_generator_state, mtgp32dc_params_fast_11213,
+				dev_parameters_sequence, NUM_BLOCK, seed
+				)
+	);
+	//以上で、乱数生成器を使う準備ができた
+
+	//すべてのスレッドでintの乱数を作って表示してみる
+	generate_and_printf_random<<<NUM_BLOCK, NUM_THREAD>>>(dev_generator_state);
+	cudaDeviceSynchronize();
+	printf("\n");
+
+	//一つのブロックのうち一部のスレッドでだけintの乱数を作って表示してみる
+	//安全に行うために、curand_mtgp32_specific()を使う
+	generate_and_printf_random_specific<<<NUM_BLOCK, NUM_THREAD>>>(dev_generator_state);
+	cudaDeviceSynchronize();
+	printf("\n");
+
+	//すべてのスレッドでfloatの乱数を作って表示してみる
+	generate_and_printf_random_float<<<NUM_BLOCK, NUM_THREAD>>>(dev_generator_state);
+	cudaDeviceSynchronize();
+	printf("\n");
+
+	//配列を解放
+	check_cuda_funcs_executed_right (
+		cudaFree(dev_generator_state)
+	);
+	check_cuda_funcs_executed_right (
+		cudaFree(dev_parameters_sequence)
+	);
+	return 0;
+}
+
+```
+
 ## 3.7. Thrustを使う例
 ## 3.8. 離散分布を作るコードの例
